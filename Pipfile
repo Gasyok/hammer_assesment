@@ -7,6 +7,11 @@ name = "pypi"
 django = "*"
 djangorestframework = "*"
 pymemcache = "*"
+pyyaml = "*"
+inflection = "*"
+uritemplate = "*"
+django-rest-swagger = "*"
+drf-yasg = "*"
 
 [dev-packages]
 

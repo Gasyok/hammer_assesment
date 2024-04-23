@@ -1,12 +1,17 @@
 from django.http import JsonResponse
-from django.contrib.auth import login
+from django.contrib.auth import login, authenticate
 from django.core.cache import cache
+from django.views.decorators.csrf import csrf_exempt
+
 
 from rest_framework import status, generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.authentication import SessionAuthentication
+from rest_framework.authentication import TokenAuthentication
+
+from rest_framework.authtoken.models import Token
 
 
 import random
@@ -18,32 +23,33 @@ from .serializers import ActivateUserSerializer
 from .models import User
 
 
-class RequestCodeView(APIView):
+def generate_code(phone):
+    time.sleep(random.uniform(1, 2))
+    code = ''.join(random.choices('0123456789', k=4))
+    cache.set(phone, code, timeout=300)
+    return code
 
-    def post(self, request):
-        serializer = PhoneSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        phone_number = data['phone_number']
-        verify_code = self.generate_code(phone_number)
 
-        return JsonResponse(
-            status=200,
-            data={
-                "message": "Verify code sent to your device",
-                "code": verify_code
-            }
-        )
+@csrf_exempt
+@api_view(["POST"])
+def request_code_view(request):
+    serializer = PhoneSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+    phone_number = data['phone_number']
+    verify_code = generate_code(phone_number)
 
-    def generate_code(self, phone):
-        time.sleep(random.uniform(1, 2))
-        code = ''.join(random.choices('0123456789', k=4))
-        cache.set(phone, code, timeout=300)
-        return code
+    return JsonResponse(
+        status=200,
+        data={
+            "message": "Verify code sent to your device",
+            "code": verify_code
+        }
+    )
 
 
 class VerifyCodeView(APIView):
-
+    @csrf_exempt
     def post(self, request):
         serializer = PhoneVerifySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -52,36 +58,17 @@ class VerifyCodeView(APIView):
         code = data['code']
 
         if code == cache.get(phone_number):
-            # user, created = User.objects.get_or_create(
-            #     phone_number=phone_number)
-
             user = User.objects.filter(phone_number=phone_number).first()
-
-            # print(user)
-            # print(created)
-
             if not user:
                 invite_code = self.generate_invite_code()
                 user = User.objects.create_user(
                     phone_number=phone_number, invite_code=invite_code)
                 user.save()
 
-            login(request, user)
-
-            return JsonResponse(
-                status=200,
-                data={
-                    "message": "Verification Success"
-                }
-            )
-
-        return JsonResponse(
-            status=400,
-            data={
-                "message": "Invalid code",
-                "code": cache.get(phone_number)
-            }
-        )
+            token, _ = Token.objects.get_or_create(user=user)
+            return JsonResponse({'token': str(token)}, status=200)
+        else:
+            return JsonResponse({'message': 'Invalid code'}, status=400)
 
     def generate_invite_code(self):
         characters = string.ascii_letters + string.digits
@@ -94,28 +81,24 @@ class ListUserView(generics.ListAPIView):
     serializer_class = UserSerializer
 
 
-class ActivateCodeView(APIView):
-    authentication_classes = [SessionAuthentication]
+class UserProfileView(APIView):
+    authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
 
-    def patch(self, request):
+    def get(self, request, *args, **kwargs):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)
+
+    def patch(self, request, *args, **kwargs):
         serializer = ActivateUserSerializer(
             data=request.data, context={'request': request})
         if serializer.is_valid():
             user = request.user
-            invite_code = serializer.validated_data.get('invite_code')
+            invite_code = serializer.validated_data['invite_code']
 
             user_obj = User.objects.get(invite_code=invite_code)
             user.activated_from = user_obj
             user.save()
 
-            return Response({'message': 'Activated'}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class UserProfileView(APIView):
-    authentication_classes = [SessionAuthentication]
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        return Response({'message': 'Вы аутентифицированы'})
+            return JsonResponse({'message': 'Activated'}, status=200)
+        return JsonResponse(serializer.errors, status=400)

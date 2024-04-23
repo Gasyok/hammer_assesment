@@ -32,15 +32,6 @@ class PhoneSerializer(serializers.Serializer):
 
 class PhoneVerifySerializer(serializers.Serializer):
     code = serializers.CharField(max_length=4)
-    # phone_number = serializers.CharField()
-
-    # def to_internal_value(self, data):
-    #     phone_serializer = PhoneSerializer(data=data)
-    #     phone_serializer.is_valid(raise_exception=True)
-    #     return {
-    #         'phone_number': phone_serializer.validated_data['phone_number'],
-    #         'code': data['code']
-    #     }
     phone_number = serializers.CharField(
         validators=[UniqueValidator(queryset=User.objects.all())]
     )
@@ -94,7 +85,7 @@ class ActivateUserSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 "Invalid code")
 
-        if self.context['request'].user.invite_code:
+        if self.context['request'].user.activated_from:
             raise serializers.ValidationError(
                 "You already activated"
             )
@@ -103,22 +94,6 @@ class ActivateUserSerializer(serializers.Serializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
-    # phone_number = PhoneSerializer()
-    # phone_number = serializers.CharField()
-
-    # def to_internal_value(self, data):
-    #     phone_serializer = PhoneSerializer(data=data)
-    #     phone_serializer.is_valid(raise_exception=True)
-    #     return {
-    #         'phone_number': phone_serializer.validated_data['phone_number'],
-    #         'code': data['code']
-    #     }
-
-    # a_from = serializers.CharField(
-    #     source='activated_from.invite_code', read_only=True)
-    # a_by = serializers.ListField(
-    #     source='activated_by.invite_code', read_only=True)
-
     activated_by = serializers.SerializerMethodField()
     activated_from = serializers.SerializerMethodField()
 
@@ -136,27 +111,3 @@ class UserSerializer(serializers.ModelSerializer):
         if activated_from_user:
             return activated_from_user.invite_code
         return None
-
-        # extra_kwargs = {
-        #     'invite_code': {
-        #         'validators': [
-        #             UniqueValidator(queryset=User.objects.all())
-        #         ]
-        #     },
-        #     # 'phone': {
-        #     #     'validators': [
-        #     #         UniqueValidator
-        #     #         ]
-        #     #     }
-        # }
-
-        # validators = [
-        #     UniqueValidator(
-        #         queryset=User.objects.all()
-        #     )
-        #     # UniqueTogetherValidator(
-        #     #     queryset=User.objects.all(),
-        #     #     fields=['phone_number', 'invite_code'],
-        #     #     message="This menu item already exists in this category."
-        #     # )
-        # ]
