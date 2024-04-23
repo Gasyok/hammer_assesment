@@ -33,6 +33,9 @@ def generate_code(phone):
 @csrf_exempt
 @api_view(["POST"])
 def request_code_view(request):
+    """
+    Sending POST and in response you will have SMS CODE
+    """
     serializer = PhoneSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
@@ -49,8 +52,15 @@ def request_code_view(request):
 
 
 class VerifyCodeView(APIView):
+    """
+    Imitating verifying your SMS code
+    """
+
     @csrf_exempt
     def post(self, request):
+        """
+        You need to specify CODE
+        """
         serializer = PhoneVerifySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -76,20 +86,24 @@ class VerifyCodeView(APIView):
         return invite_code
 
 
-class ListUserView(generics.ListAPIView):
-    queryset = User.objects.all()
-    serializer_class = UserSerializer
-
-
 class UserProfileView(APIView):
+    """
+    Handling GET and PATCH requests. For PATCH you need to specify invite code
+    """
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
+        """
+        Returns user's profile information
+        """
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
 
     def patch(self, request, *args, **kwargs):
+        """
+        You need to specify actual invite code
+        """
         serializer = ActivateUserSerializer(
             data=request.data, context={'request': request})
         if serializer.is_valid():
